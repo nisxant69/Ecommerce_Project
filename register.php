@@ -1,6 +1,9 @@
 <?php
+// Start the session (ensure this is done before any output)
+session_start();
+
 require_once 'includes/db_connect.php';
-require_once 'includes/header.php';
+require_once 'includes/functions.php'; // For set_flash_message, verify_csrf_token, etc.
 
 // Redirect if already logged in
 if (is_logged_in()) {
@@ -9,6 +12,10 @@ if (is_logged_in()) {
 }
 
 // Handle registration form submission
+$errors = [];
+$name = '';
+$email = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'])) {
         set_flash_message('danger', 'Invalid form submission.');
@@ -20,8 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    
-    $errors = [];
     
     // Validate name
     if (strlen($name) < 2 || strlen($name) > 100) {
@@ -93,6 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Now that all header-modifying logic is done, include the header and output HTML
+require_once 'includes/header.php';
 ?>
 
 <div class="row justify-content-center">
@@ -117,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label for="name" class="form-label">Full Name</label>
                         <input type="text" class="form-control" id="name" name="name" 
-                               value="<?php echo isset($name) ? htmlspecialchars($name) : ''; ?>" 
+                               value="<?php echo htmlspecialchars($name); ?>" 
                                required minlength="2" maxlength="100">
                         <div class="invalid-feedback">
                             Please enter your full name (2-100 characters).
@@ -127,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label for="email" class="form-label">Email address</label>
                         <input type="email" class="form-control" id="email" name="email" 
-                               value="<?php echo isset($email) ? htmlspecialchars($email) : ''; ?>" 
+                               value="<?php echo htmlspecialchars($email); ?>" 
                                required>
                         <div class="invalid-feedback">
                             Please enter a valid email address.

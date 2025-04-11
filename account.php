@@ -1,17 +1,36 @@
 <?php
+// // Start the session (ensure this is done before any output)
+// session_start();
+
+// Include the database connection
+require_once 'includes/db_connect.php';
+require_once 'includes/functions.php'; // For is_logged_in(), set_flash_message(), etc.
 require_once 'includes/header.php';
 
 // Check if user is logged in
 if (!is_logged_in()) {
+    set_flash_message('danger', 'Please log in to access your account.');
     header('Location: login.php');
     exit();
 }
 
 // Get user information
+$user = null;
+$orders = [];
+$error = null;
+
 try {
+    // Fetch user details
     $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
+
+    if (!$user) {
+        // User not found (shouldn't happen if is_logged_in() is working correctly)
+        set_flash_message('danger', 'User not found.');
+        header('Location: logout.php');
+        exit();
+    }
 
     // Get user's orders
     $stmt = $pdo->prepare("
@@ -24,8 +43,8 @@ try {
     $stmt->execute([$_SESSION['user_id']]);
     $orders = $stmt->fetchAll();
 } catch (PDOException $e) {
-    error_log("Error fetching user data: " . $e->getMessage());
-    $error = "Error fetching user data";
+    error_log("Error fetching user data in account.php: " . $e->getMessage());
+    $error = "Error fetching user data. Please try again later.";
 }
 ?>
 
@@ -54,12 +73,13 @@ try {
                         <div class="card-body">
                             <h5 class="card-title">Profile Information</h5>
                             <?php if (isset($error)): ?>
-                                <div class="alert alert-danger"><?php echo $error; ?></div>
+                                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                             <?php endif; ?>
                             <form action="update_profile.php" method="POST">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                 <div class="mb-3">
                                     <label for="name" class="form-label">Name</label>
-                                    <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>">
+                                    <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required>
                                 </div>
                                 <div class="mb-3">
                                     <label for="email" class="form-label">Email</label>
@@ -95,16 +115,16 @@ try {
                                         <tbody>
                                             <?php foreach ($orders as $order): ?>
                                                 <tr>
-                                                    <td>#<?php echo $order['id']; ?></td>
-                                                    <td><?php echo date('M d, Y', strtotime($order['created_at'])); ?></td>
+                                                    <td>#<?php echo htmlspecialchars($order['id']); ?></td>
+                                                    <td><?php echo htmlspecialchars(date('M d, Y', strtotime($order['created_at']))); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $order['status_id'] == 1 ? 'success' : 'warning'; ?>">
-                                                            <?php echo htmlspecialchars($order['status_name']); ?>
+                                                            <?php echo htmlspecialchars($order['status_name'] ?? 'Unknown'); ?>
                                                         </span>
                                                     </td>
                                                     <td><?php echo format_price($order['total_amount']); ?></td>
                                                     <td>
-                                                        <a href="order_details.php?id=<?php echo $order['id']; ?>" class="btn btn-sm btn-info">View</a>
+                                                        <a href="order_details.php?id=<?php echo htmlspecialchars($order['id']); ?>" class="btn btn-sm btn-info">View</a>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -124,6 +144,7 @@ try {
                         <div class="card-body">
                             <h5 class="card-title">Account Settings</h5>
                             <form action="update_password.php" method="POST">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                 <div class="mb-3">
                                     <label for="current_password" class="form-label">Current Password</label>
                                     <input type="password" class="form-control" id="current_password" name="current_password" required>
