@@ -1,9 +1,7 @@
 <?php
 require_once '../includes/db_connect.php';
-require_once '../includes/functions.php';
-
-// Require admin access
-require_admin();
+require_once __DIR__ . '/includes/functions.php';
+require_admin_login();
 
 // Handle user actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,13 +38,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     set_flash_message('success', 'User deleted successfully.');
                 }
                 break;
+
+            case 'update_role':
+                $new_role = $_POST['new_role'];
+                if (!in_array($new_role, ['user', 'admin'])) {
+                    set_flash_message('danger', 'Invalid role specified.');
+                    break;
+                }
+                
+                // Count number of admins
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'admin'");
+                $stmt->execute();
+                $admin_count = $stmt->fetchColumn();
+                
+                // Get current user role
+                $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+                $stmt->execute([$user_id]);
+                $current_role = $stmt->fetchColumn();
+                
+                // Prevent removing last admin
+                if ($admin_count <= 1 && $current_role === 'admin' && $new_role === 'user') {
+                    set_flash_message('danger', 'Cannot remove the last admin account.');
+                    break;
+                }
+                
+                $stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
+                $stmt->execute([$new_role, $user_id]);
+                set_flash_message('success', 'User role updated successfully.');
+                break;
+
+            case 'reset_password':
+                // Generate a random password
+                $new_password = bin2hex(random_bytes(8));
+                $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+                
+                $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+                $stmt->execute([$hashed_password, $user_id]);
+                
+                // Store the new password temporarily to display to admin
+                $_SESSION['temp_password'] = $new_password;
+                set_flash_message('success', 'Password has been reset. New password: ' . $new_password);
+                break;
+
+            case 'update_user':
+                $name = trim($_POST['name']);
+                $email = trim($_POST['email']);
+                
+                if (empty($name) || empty($email)) {
+                    set_flash_message('danger', 'Name and email are required.');
+                    break;
+                }
+                
+                // Check if email exists for other users
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+                $stmt->execute([$email, $user_id]);
+                if ($stmt->fetch()) {
+                    set_flash_message('danger', 'Email already exists.');
+                    break;
+                }
+                
+                $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
+                $stmt->execute([$name, $email, $user_id]);
+                set_flash_message('success', 'User information updated successfully.');
+                break;
         }
     } catch (PDOException $e) {
         error_log("User action error: " . $e->getMessage());
         set_flash_message('danger', 'Error processing request.');
     }
     
-    header('Location: users.php');
+    header('Location: ' . ($_POST['redirect_url'] ?? 'users.php'));
     exit();
 }
 
@@ -233,31 +294,74 @@ try {
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <h5>User Information</h5>
-                            <p class="mb-1">Name: <?php echo htmlspecialchars($user['name']); ?></p>
-                            <p class="mb-1">Email: <?php echo htmlspecialchars($user['email']); ?></p>
-                            <p class="mb-1">Role: <?php echo ucfirst($user['role']); ?></p>
-                            <p class="mb-1">Status: 
-                                <span class="badge bg-<?php echo $user['is_banned'] ? 'danger' : 'success'; ?>">
-                                    <?php echo $user['is_banned'] ? 'Banned' : 'Active'; ?>
-                                </span>
-                            </p>
-                            <p class="mb-1">Joined: <?php echo date('M d, Y', strtotime($user['created_at'])); ?></p>
-                            
+                            <form method="POST" class="mb-4">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <input type="hidden" name="action" value="update_user">
+                                <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                <input type="hidden" name="redirect_url" value="<?php echo $_SERVER['REQUEST_URI']; ?>">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" class="form-control" name="name" 
+                                           value="<?php echo htmlspecialchars($user['name']); ?>" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-control" name="email" 
+                                           value="<?php echo htmlspecialchars($user['email']); ?>" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Role</label>
+                                    <?php if ($user['role'] === 'admin'): ?>
+                                        <div class="form-control bg-light">Admin</div>
+                                    <?php else: ?>
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                            <input type="hidden" name="action" value="update_role">
+                                            <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                            <input type="hidden" name="redirect_url" value="<?php echo $_SERVER['REQUEST_URI']; ?>">
+                                            <select name="new_role" class="form-select" onchange="this.form.submit()">
+                                                <option value="user" <?php echo $user['role'] === 'user' ? 'selected' : ''; ?>>User</option>
+                                                <option value="admin" <?php echo $user['role'] === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                                            </select>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">Update Information</button>
+                            </form>
+
+                            <div class="mt-4">
+                                <h5>Password Management</h5>
+                                <form method="POST" class="mb-3" onsubmit="return confirm('Are you sure you want to reset this user\'s password?');">
+                                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                    <input type="hidden" name="action" value="reset_password">
+                                    <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                    <input type="hidden" name="redirect_url" value="<?php echo $_SERVER['REQUEST_URI']; ?>">
+                                    <button type="submit" class="btn btn-warning">Reset Password</button>
+                                </form>
+                            </div>
+
                             <?php if ($user['role'] !== 'admin'): ?>
-                            <div class="mt-3">
+                            <div class="mt-4">
+                                <h5>Account Actions</h5>
                                 <form method="POST" class="d-inline-block">
                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                     <input type="hidden" name="action" value="toggle_ban">
                                     <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                    <input type="hidden" name="redirect_url" value="<?php echo $_SERVER['REQUEST_URI']; ?>">
                                     <button type="submit" class="btn btn-<?php echo $user['is_banned'] ? 'success' : 'warning'; ?>">
                                         <?php echo $user['is_banned'] ? 'Unban User' : 'Ban User'; ?>
                                     </button>
                                 </form>
                                 
-                                <form method="POST" class="d-inline-block ms-2" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                <form method="POST" class="d-inline-block ms-2" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
                                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                    <input type="hidden" name="redirect_url" value="users.php">
                                     <button type="submit" class="btn btn-danger">Delete User</button>
                                 </form>
                             </div>

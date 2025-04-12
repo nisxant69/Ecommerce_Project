@@ -1,40 +1,10 @@
 <?php
 require_once 'includes/db_connect.php';
+require_once 'includes/functions.php';
 require_once 'includes/header.php';
 
 // Require login
 require_login();
-
-// Handle add/remove from wishlist
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
-        set_flash_message('danger', 'Invalid form submission.');
-        header('Location: wishlist.php');
-        exit();
-    }
-    
-    $product_id = (int)$_POST['product_id'];
-    $action = $_POST['action'];
-    
-    try {
-        if ($action === 'remove') {
-            $stmt = $pdo->prepare("
-                DELETE FROM wishlist 
-                WHERE user_id = ? AND product_id = ?
-            ");
-            $stmt->execute([$_SESSION['user_id'], $product_id]);
-            
-            set_flash_message('success', 'Product removed from wishlist.');
-        }
-        
-        header('Location: wishlist.php');
-        exit();
-        
-    } catch (PDOException $e) {
-        error_log("Wishlist error: " . $e->getMessage());
-        set_flash_message('danger', 'Error updating wishlist.');
-    }
-}
 
 // Get wishlist items
 try {
@@ -47,7 +17,7 @@ try {
     ");
     $stmt->execute([$_SESSION['user_id']]);
     $wishlist_items = $stmt->fetchAll();
-    
+    error_log("Wishlist items for user " . $_SESSION['user_id'] . ": " . count($wishlist_items));
 } catch (PDOException $e) {
     error_log("Error fetching wishlist: " . $e->getMessage());
     $wishlist_items = [];
@@ -56,13 +26,7 @@ try {
 
 <div class="container py-5">
     <h1 class="mb-4">My Wishlist</h1>
-    
-    <?php if ($flash = get_flash_message()): ?>
-    <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-        <?php echo $flash['message']; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    <?php endif; ?>
+    <!-- Flash messages handled in header.php -->
     
     <?php if (empty($wishlist_items)): ?>
     <div class="text-center py-5">
@@ -77,7 +41,7 @@ try {
         <div class="col">
             <div class="card h-100">
                 <?php if ($item['image_url']): ?>
-                <img src="<?php echo htmlspecialchars($item['image_url']); ?>" 
+                <img src="assets/images/products/<?php echo htmlspecialchars($item['image_url']); ?>" 
                      class="card-img-top" 
                      alt="<?php echo htmlspecialchars($item['name']); ?>"
                      style="height: 200px; object-fit: cover;">
@@ -97,34 +61,31 @@ try {
                     
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="h5 mb-0"><?php echo format_price($item['price']); ?></span>
-                        
                         <div class="text-muted small">
-                            Added <?php echo time_ago($item['added_on']); ?>
+                            Added <?php echo date('M d, Y', strtotime($item['added_on'])); ?>
                         </div>
                     </div>
                     
                     <div class="mt-3">
                         <?php if ($item['stock'] > 0): ?>
-                        <form action="cart.php" method="POST" class="d-inline-block">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="product_id" value="<?php echo $item['id']; ?>">
-                            <input type="hidden" name="quantity" value="1">
-                            <button type="submit" class="btn btn-primary">
+                        <div class="d-flex gap-2 mb-2">
+                            <select class="form-select form-select-sm w-auto" id="quantity-<?php echo $item['id']; ?>">
+                                <?php for ($i = 1; $i <= min(10, $item['stock']); $i++): ?>
+                                    <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                            <button onclick="addToCartFromWishlist(<?php echo $item['id']; ?>)" class="btn btn-primary">
                                 <i class="fas fa-shopping-cart me-1"></i> Add to Cart
                             </button>
-                        </form>
+                        </div>
                         <?php else: ?>
                         <button class="btn btn-secondary" disabled>Out of Stock</button>
                         <?php endif; ?>
                         
-                        <form method="POST" class="d-inline-block">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="product_id" value="<?php echo $item['id']; ?>">
-                            <input type="hidden" name="action" value="remove">
-                            <button type="submit" class="btn btn-outline-danger">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </form>
+                        <button onclick="removeFromWishlist(<?php echo $item['id']; ?>)" 
+                                class="btn btn-outline-danger">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -133,5 +94,60 @@ try {
     </div>
     <?php endif; ?>
 </div>
+
+<script>
+function removeFromWishlist(productId) {
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('action', 'remove');
+    formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+    
+    fetch('api/wishlist.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Error removing from wishlist');
+        }
+    })
+    .catch(error => {
+        alert('Error removing from wishlist');
+    });
+}
+
+function addToCartFromWishlist(productId) {
+    const quantity = parseInt(document.getElementById(`quantity-${productId}`).value);
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+    
+    fetch('api/cart.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update cart count in header
+            const cartCount = document.getElementById('cartCount');
+            if (cartCount) {
+                cartCount.textContent = data.cart_count || '0';
+            }
+            // Show success message
+            alert('Product added to cart successfully!');
+        } else {
+            alert(data.error || 'Error adding to cart');
+        }
+    })
+    .catch(error => {
+        alert('Error adding to cart');
+    });
+}
+</script>
 
 <?php require_once 'includes/footer.php'; ?>

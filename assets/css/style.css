@@ -51,8 +51,76 @@ body {
     object-fit: contain;
 }
 
+/* Star Rating Styles */
 .rating {
+    display: inline-flex;
+    align-items: center;
+}
+
+.rating i {
+    color: #ffc107;  /* Star color */
+    font-size: 1rem;
+    margin-right: 2px;
+}
+
+.rating i.far {
+    color: #e4e5e9;  /* Empty star color */
+}
+
+/* Star Rating Input Styles */
+.rating-input {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+
+.rating-input input {
+    display: none;
+}
+
+.rating-input label {
+    cursor: pointer;
+    font-size: 1.5rem;
+    padding: 0 0.1em;
+}
+
+.rating-input label i {
+    color: #e4e5e9;
+    transition: all 0.2s ease;
+}
+
+.rating-input input:checked ~ label i,
+.rating-input label:hover i,
+.rating-input label:hover ~ label i {
     color: #ffc107;
+}
+
+/* Product Card Rating */
+.product-card .rating {
+    margin-top: 0.5rem;
+}
+
+.product-card .rating i {
+    font-size: 0.875rem;
+}
+
+/* Review Card Rating */
+.review-card .rating {
+    margin: 0.5rem 0;
+}
+
+.review-card .rating i {
+    font-size: 1rem;
+}
+
+/* Rating Filter Styles */
+.rating-filter .form-check-label i {
+    color: #ffc107;
+    margin-right: 2px;
+}
+
+.rating-filter .form-check-label i.far {
+    color: #e4e5e9;
 }
 
 /* Forms */
@@ -156,11 +224,6 @@ footer a:hover {
     display: flex;
     align-items: center;
     cursor: pointer;
-}
-
-.rating-filter .form-check-label i {
-    color: #ffc107;
-    margin-right: 2px;
 }
 
 .rating-filter .form-check-input:checked + .form-check-label {

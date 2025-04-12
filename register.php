@@ -1,9 +1,14 @@
 <?php
-// Start the session (ensure this is done before any output)
 session_start();
-
 require_once 'includes/db_connect.php';
-require_once 'includes/functions.php'; // For set_flash_message, verify_csrf_token, etc.
+require_once 'includes/functions.php'; // Session started here
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Start logging
+error_log("=== Registration page loaded ===");
 
 // Redirect if already logged in
 if (is_logged_in()) {
@@ -17,16 +22,35 @@ $name = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
+    error_log("=== START OF REGISTRATION ATTEMPT ===");
+    error_log("Raw POST data: " . print_r($_POST, true));
+    
+    // Check if form fields are set
+    error_log("Checking form fields:");
+    error_log("name set: " . (isset($_POST['name']) ? 'yes' : 'no'));
+    error_log("email set: " . (isset($_POST['email']) ? 'yes' : 'no'));
+    error_log("password set: " . (isset($_POST['password']) ? 'yes' : 'no'));
+    error_log("confirm_password set: " . (isset($_POST['confirm_password']) ? 'yes' : 'no'));
+    error_log("terms set: " . (isset($_POST['terms']) ? 'yes' : 'no'));
+    error_log("csrf_token set: " . (isset($_POST['csrf_token']) ? 'yes' : 'no'));
+    
+    // Verify CSRF token
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        error_log("CSRF token validation failed");
+        error_log("Received token: " . ($_POST['csrf_token'] ?? 'none'));
+        error_log("Session token: " . ($_SESSION['csrf_token'] ?? 'none'));
         set_flash_message('danger', 'Invalid form submission.');
         header('Location: register.php');
         exit();
     }
     
-    $name = trim($_POST['name']);
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
+    $terms_accepted = isset($_POST['terms']);
+    
+    error_log("Processed form data - Name: $name, Email: $email, Terms accepted: " . ($terms_accepted ? 'yes' : 'no'));
     
     // Validate name
     if (strlen($name) < 2 || strlen($name) > 100) {
@@ -51,55 +75,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match('/[0-9]/', $password)) {
         $errors[] = 'Password must contain at least one number.';
     }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = 'Password must contain at least one special character.';
+    }
     
     // Confirm passwords match
     if ($password !== $confirm_password) {
         $errors[] = 'Passwords do not match.';
     }
     
+    // Check terms acceptance
+    if (!$terms_accepted) {
+        $errors[] = 'You must accept the terms and conditions.';
+    }
+    
+    if (!empty($errors)) {
+        error_log("Registration validation errors: " . print_r($errors, true));
+    }
+    
     if (empty($errors)) {
         try {
+            error_log("Starting database operations...");
+            
             // Check if email already exists
             $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            error_log("Checking for existing email: $email");
             $stmt->execute([$email]);
             
             if ($stmt->fetch()) {
+                error_log("Registration failed: Email already exists - $email");
                 $errors[] = 'Email address is already registered.';
             } else {
+                error_log("Email is available, proceeding with registration");
+                
                 // Create user account
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (name, email, password_hash, role) 
-                    VALUES (?, ?, ?, 'user')
-                ");
-                $stmt->execute([
-                    $name,
-                    $email,
-                    password_hash($password, PASSWORD_DEFAULT)
-                ]);
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                $insert_query = "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'user')";
+                error_log("Preparing insert query: $insert_query");
                 
-                // Get the new user's ID
-                $user_id = $pdo->lastInsertId();
+                $stmt = $pdo->prepare($insert_query);
                 
-                // Log the user in
-                $_SESSION['user_id'] = $user_id;
-                $_SESSION['user_name'] = $name;
-                $_SESSION['user_role'] = 'user';
-                
-                // Regenerate session ID for security
-                session_regenerate_id(true);
-                
-                set_flash_message('success', 'Registration successful! Welcome to our store.');
-                header('Location: index.php');
-                exit();
+                try {
+                    error_log("Attempting to insert new user - Name: $name, Email: $email");
+                    $result = $stmt->execute([$name, $email, $password_hash]);
+                    
+                    if ($result) {
+                        $user_id = $pdo->lastInsertId();
+                        error_log("User registered successfully: ID=$user_id, Email=$email");
+                        
+                        set_flash_message('success', 'Registration successful! You can now log in.');
+                        header('Location: login.php');
+                        exit();
+                    } else {
+                        error_log("Failed to insert new user - PDO error info: " . print_r($stmt->errorInfo(), true));
+                        $errors[] = 'Failed to create account. Please try again.';
+                    }
+                } catch (PDOException $e) {
+                    error_log("Database error during user insertion: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+                    $errors[] = 'Error creating account: ' . $e->getMessage();
+                }
             }
         } catch (PDOException $e) {
-            error_log("Registration error: " . $e->getMessage());
+            error_log("Database error during email check: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
             $errors[] = 'Error creating account. Please try again later.';
         }
     }
 }
 
-// Now that all header-modifying logic is done, include the header and output HTML
 require_once 'includes/header.php';
 ?>
 
@@ -120,7 +162,7 @@ require_once 'includes/header.php';
                 <?php endif; ?>
                 
                 <form method="POST" id="registerForm" novalidate>
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     
                     <div class="mb-3">
                         <label for="name" class="form-label">Full Name</label>
@@ -171,7 +213,7 @@ require_once 'includes/header.php';
                     </div>
                     
                     <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="terms" required>
+                        <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
                         <label class="form-check-label" for="terms">
                             I agree to the <a href="terms.php" target="_blank">Terms & Conditions</a>
                         </label>
@@ -201,16 +243,9 @@ function togglePasswordVisibility(inputId, buttonId) {
     document.getElementById(buttonId).addEventListener('click', function() {
         const input = document.getElementById(inputId);
         const icon = this.querySelector('i');
-        
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
-        } else {
-            input.type = 'password';
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
-        }
+        input.type = input.type === 'password' ? 'text' : 'password';
+        icon.classList.toggle('fa-eye');
+        icon.classList.toggle('fa-eye-slash');
     });
 }
 
@@ -228,7 +263,6 @@ form.addEventListener('submit', function(e) {
         e.stopPropagation();
     }
     
-    // Check password match
     if (password.value !== confirmPassword.value) {
         confirmPassword.setCustomValidity('Passwords do not match');
     } else {
@@ -238,7 +272,6 @@ form.addEventListener('submit', function(e) {
     this.classList.add('was-validated');
 });
 
-// Clear custom validity on input
 confirmPassword.addEventListener('input', function() {
     if (password.value === this.value) {
         this.setCustomValidity('');
@@ -247,21 +280,14 @@ confirmPassword.addEventListener('input', function() {
     }
 });
 
-// Password strength validation
 password.addEventListener('input', function() {
     const value = this.value;
     let isValid = true;
-    
     if (value.length < 8) isValid = false;
     if (!/[A-Z]/.test(value)) isValid = false;
     if (!/[a-z]/.test(value)) isValid = false;
     if (!/[0-9]/.test(value)) isValid = false;
-    
-    if (!isValid) {
-        this.setCustomValidity('Password must be at least 8 characters long and contain uppercase, lowercase, and numbers.');
-    } else {
-        this.setCustomValidity('');
-    }
+    this.setCustomValidity(isValid ? '' : 'Password must be at least 8 characters long and contain uppercase, lowercase, and numbers.');
 });
 </script>
 

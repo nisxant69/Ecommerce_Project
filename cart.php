@@ -2,41 +2,64 @@
 require_once 'includes/db_connect.php';
 require_once 'includes/header.php';
 
-init_cart();
+// Debug session
+error_log("Cart page - Session status: " . session_status());
+error_log("Cart page - User ID: " . ($_SESSION['user_id'] ?? 'not set'));
+error_log("Cart page - Session data: " . print_r($_SESSION, true));
 
-// Get cart items
+// Initialize variables
 $cart_items = [];
 $total = 0;
+$shipping_fee = 1.00; // Fixed $1 shipping fee
 
-if (!empty($_SESSION['cart'])) {
+// Get cart items
+if (is_logged_in()) {
     try {
-        $placeholders = str_repeat('?,', count($_SESSION['cart']) - 1) . '?';
-        $stmt = $pdo->prepare("
-            SELECT * FROM products 
-            WHERE id IN ($placeholders) 
-            AND is_deleted = 0
-        ");
-        $stmt->execute(array_keys($_SESSION['cart']));
-        $products = $stmt->fetchAll();
+        // Get cart items with product details for logged-in users
+        $cart_items = get_cart_items();
         
-        foreach ($products as $product) {
-            $quantity = $_SESSION['cart'][$product['id']];
-            $cart_items[] = [
-                'id' => $product['id'],
-                'name' => $product['name'],
-                'price' => $product['price'],
-                'image_url' => $product['image_url'],
-                'stock' => $product['stock'],
-                'quantity' => $quantity,
-                'subtotal' => $product['price'] * $quantity
-            ];
-            $total += $product['price'] * $quantity;
+        // Calculate total
+        foreach ($cart_items as $item) {
+            $total += $item['price'] * $item['quantity'];
         }
     } catch (PDOException $e) {
         error_log("Error fetching cart items: " . $e->getMessage());
         set_flash_message('danger', 'Error loading cart items. Please try again later.');
     }
+} else {
+    // Get cart items from session for non-logged-in users
+    if (!empty($_SESSION['cart'])) {
+        try {
+            $placeholders = str_repeat('?,', count($_SESSION['cart']) - 1) . '?';
+            $stmt = $pdo->prepare("
+                SELECT * FROM products 
+                WHERE id IN ($placeholders) 
+                AND is_deleted = 0
+            ");
+            $stmt->execute(array_keys($_SESSION['cart']));
+            $products = $stmt->fetchAll();
+            
+            foreach ($products as $product) {
+                $quantity = $_SESSION['cart'][$product['id']];
+                $cart_items[] = [
+                    'product_id' => $product['id'],
+                    'name' => $product['name'],
+                    'price' => $product['price'],
+                    'image_url' => $product['image_url'],
+                    'quantity' => $quantity,
+                    'stock' => $product['stock']
+                ];
+                $total += $product['price'] * $quantity;
+            }
+        } catch (PDOException $e) {
+            error_log("Error fetching session cart items: " . $e->getMessage());
+            set_flash_message('danger', 'Error loading cart items. Please try again later.');
+        }
+    }
 }
+
+// Calculate final total with shipping
+$final_total = $total + $shipping_fee;
 ?>
 
 <div class="row">
@@ -53,7 +76,6 @@ if (!empty($_SESSION['cart'])) {
                     <a href="products.php" class="btn btn-primary">Continue Shopping</a>
                 </div>
                 <?php else: ?>
-                
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
@@ -70,12 +92,12 @@ if (!empty($_SESSION['cart'])) {
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="assets/images/<?php echo htmlspecialchars($item['image_url']); ?>" 
+                                        <img src="assets/images/products/<?php echo htmlspecialchars($item['image_url']); ?>" 
                                              alt="<?php echo htmlspecialchars($item['name']); ?>"
                                              class="img-thumbnail me-3" style="width: 50px;">
                                         <div>
                                             <h6 class="mb-0">
-                                                <a href="product.php?id=<?php echo $item['id']; ?>" class="text-decoration-none">
+                                                <a href="product.php?id=<?php echo $item['product_id']; ?>" class="text-decoration-none">
                                                     <?php echo htmlspecialchars($item['name']); ?>
                                                 </a>
                                             </h6>
@@ -89,23 +111,25 @@ if (!empty($_SESSION['cart'])) {
                                 <td>
                                     <div class="input-group" style="width: 120px;">
                                         <button class="btn btn-outline-secondary btn-sm" 
-                                                onclick="updateCartQuantity(<?php echo $item['id']; ?>, -1)">
+                                                onclick="updateCart(<?php echo $item['product_id']; ?>, -1)">
                                             <i class="fas fa-minus"></i>
                                         </button>
-                                        <input type="number" class="form-control form-control-sm text-center" 
+                                        <input type="number" 
+                                               class="form-control form-control-sm text-center cart-quantity" 
                                                value="<?php echo $item['quantity']; ?>"
-                                               min="1" max="<?php echo $item['stock']; ?>"
-                                               onchange="updateCartQuantity(<?php echo $item['id']; ?>, this.value, true)">
+                                               min="1" 
+                                               max="<?php echo $item['stock']; ?>"
+                                               data-product-id="<?php echo $item['product_id']; ?>">
                                         <button class="btn btn-outline-secondary btn-sm" 
-                                                onclick="updateCartQuantity(<?php echo $item['id']; ?>, 1)">
+                                                onclick="updateCart(<?php echo $item['product_id']; ?>, 1)">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </div>
                                 </td>
-                                <td><?php echo format_price($item['subtotal']); ?></td>
+                                <td class="cart-item-total"><?php echo format_price($item['price'] * $item['quantity']); ?></td>
                                 <td>
                                     <button class="btn btn-link text-danger btn-sm" 
-                                            onclick="removeFromCart(<?php echo $item['id']; ?>)">
+                                            onclick="updateCart(<?php echo $item['product_id']; ?>, 0)">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -129,12 +153,12 @@ if (!empty($_SESSION['cart'])) {
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span>Shipping</span>
-                    <span><?php echo $total >= 50 ? 'Free' : format_price(10); ?></span>
+                    <span><?php echo format_price($shipping_fee); ?></span>
                 </div>
                 <hr>
                 <div class="d-flex justify-content-between mb-3">
                     <strong>Total</strong>
-                    <strong><?php echo format_price($total >= 50 ? $total : $total + 10); ?></strong>
+                    <strong><?php echo format_price($final_total); ?></strong>
                 </div>
                 
                 <?php if (!empty($cart_items)): ?>
@@ -153,43 +177,67 @@ if (!empty($_SESSION['cart'])) {
 </div>
 
 <script>
-function updateCartQuantity(productId, quantity, absolute = false) {
-    let currentQuantity = parseInt(document.querySelector(`tr[data-product="${productId}"] input`).value);
-    let newQuantity = absolute ? parseInt(quantity) : currentQuantity + parseInt(quantity);
-    
-    if (newQuantity < 1) newQuantity = 1;
-    
-    updateCart(productId, newQuantity);
-}
+let updateInProgress = false;
 
-function removeFromCart(productId) {
-    if (confirm('Are you sure you want to remove this item from your cart?')) {
-        updateCart(productId, 0);
+function updateCart(productId, quantity, absolute = false) {
+    if (updateInProgress) {
+        console.log('Update already in progress');
+        return;
     }
+    
+    updateInProgress = true;
+    
+    const formData = new FormData();
+    formData.append('action', quantity === 0 ? 'remove' : (absolute ? 'update' : 'add'));
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('absolute', absolute ? '1' : '0');
+    formData.append('csrf_token', '<?php echo generate_csrf_token(); ?>');
+    
+    fetch('api/cart.php', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update cart count in header
+            const cartCount = document.getElementById('cartCount');
+            if (cartCount) {
+                cartCount.textContent = data.cart_count || '0';
+            }
+            // Reload page to show updated cart
+            window.location.reload();
+        } else {
+            showAlert('danger', data.message || 'Error updating cart');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Error updating cart. Please try again.');
+    })
+    .finally(() => {
+        updateInProgress = false;
+    });
 }
 
-// Override the updateCart function from script.js to handle cart page specifics
-function updateCart(productId, quantity) {
-    $.ajax({
-        url: '/ecomfinal/api/cart.php',
-        type: 'POST',
-        data: {
-            action: quantity === 0 ? 'remove' : 'update',
-            product_id: productId,
-            quantity: quantity,
-            csrf_token: $('meta[name="csrf-token"]').attr('content')
-        },
-        success: function(response) {
-            if (response.success) {
-                location.reload(); // Reload to update all totals
-            } else {
-                showAlert('danger', response.message || 'Error updating cart');
-            }
-        },
-        error: function() {
-            showAlert('danger', 'Error updating cart');
-        }
-    });
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+    alertDiv.style.zIndex = '1050';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Auto dismiss after 3 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 3000);
 }
 </script>
 

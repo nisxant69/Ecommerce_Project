@@ -91,7 +91,7 @@ $delivery_date = date('Y-m-d', strtotime($order['created_at'] . ' +7 weekdays'))
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <img src="assets/images/<?php echo htmlspecialchars($item['image_url']); ?>" 
+                                            <img src="assets/images/products/<?php echo htmlspecialchars($item['image_url']); ?>" 
                                                  alt="<?php echo htmlspecialchars($item['name']); ?>"
                                                  class="img-thumbnail me-3" style="width: 50px;">
                                             <?php echo htmlspecialchars($item['name']); ?>

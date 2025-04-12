@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/functions.php';
-require_once __DIR__ . '/khalti_config.php';
+require_once __DIR__ . '/config.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -13,13 +12,14 @@ require_once __DIR__ . '/khalti_config.php';
     <link rel="stylesheet" href="assets/css/style.css">
     <meta name="csrf-token" content="<?php echo generate_csrf_token(); ?>">
     <script src="https://khalti.s3.ap-south-1.amazonaws.com/KPG/dist/2020.12.22.0.0.0/khalti-checkout.iffe.js"></script>
-    <!-- Khalti Test Environment -->
     <script>
         var khaltiConfig = {
             "publicKey": "<?php echo KHALTI_PUBLIC_KEY; ?>",
             "env": "test"
         };
     </script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/script.js" defer></script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -31,10 +31,10 @@ require_once __DIR__ . '/khalti_config.php';
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="laptopsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="laptopsDropdown" role="button" data-bs-toggle="dropdown">
                             Laptops
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="laptopsDropdown">
+                        <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="products.php?category=1">Gaming Laptops</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="products.php?category=2">Business Laptops</a></li>
@@ -44,10 +44,10 @@ require_once __DIR__ . '/khalti_config.php';
                         <a class="nav-link" href="products.php?category=3">Monitors</a>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="componentsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="componentsDropdown" role="button" data-bs-toggle="dropdown">
                             Components
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="componentsDropdown">
+                        <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="products.php?category=4">PC Components</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="products.php?category=7">Storage</a></li>
@@ -64,10 +64,13 @@ require_once __DIR__ . '/khalti_config.php';
                     <button class="btn btn-outline-primary" type="submit">Search</button>
                 </form>
                 <ul class="navbar-nav ms-auto">
+                    <li class="nav-item me-2">
+                        <?php include 'currency_selector.php'; ?>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="cart.php">
                             <i class="fas fa-shopping-cart"></i>
-                            <span class="badge bg-primary cart-count"><?php echo get_cart_total(); ?></span>
+                            <span class="badge bg-primary cart-count" id="cartCount"><?php echo get_cart_total(); ?></span>
                         </a>
                     </li>
                     <?php if (is_logged_in()): ?>
@@ -99,11 +102,12 @@ require_once __DIR__ . '/khalti_config.php';
         </div>
     </nav>
     <div class="container mt-4">
-        <?php
-        $flash = get_flash_message();
-        if ($flash): ?>
-            <div class="alert alert-<?php echo $flash['type']; ?> alert-dismissible fade show">
-                <?php echo $flash['message']; ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
+        <?php 
+        $flash_messages = get_flash_messages();
+        foreach ($flash_messages as $flash) {
+            echo '<div class="alert alert-' . htmlspecialchars($flash['type']) . ' alert-dismissible fade show" role="alert">';
+            echo htmlspecialchars($flash['message']);
+            echo '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+            echo '</div>';
+        }
+        ?>

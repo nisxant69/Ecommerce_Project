@@ -1,59 +1,122 @@
 <?php
+session_start();
 require_once 'includes/db_connect.php';
-require_once 'includes/header.php';
+require_once 'includes/functions.php';
 
 // Redirect if already logged in
 if (is_logged_in()) {
-    header('Location: index.php');
-    exit();
+    if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+        header('Location: admin/dashboard.php');
+        exit();
+    } else {
+        header('Location: index.php');
+        exit();
+    }
 }
 
-// Get redirect URL if set
-$redirect = isset($_GET['redirect']) ? $_GET['redirect'] : 'index.php';
+// Get redirect URL
+$redirect = isset($_GET['redirect']) ? filter_var($_GET['redirect'], FILTER_SANITIZE_URL) : 'index.php';
 
 // Handle login form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verify_csrf_token($_POST['csrf_token'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         set_flash_message('danger', 'Invalid form submission.');
-        header('Location: login.php');
+        header('Location: login.php?redirect=' . urlencode($redirect));
         exit();
     }
     
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
+    $email = sanitize_input($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $remember = isset($_POST['remember']);
+    
+    if (empty($email) || empty($password)) {
+        set_flash_message('danger', 'Please fill in all fields.');
+        header('Location: login.php?redirect=' . urlencode($redirect));
+        exit();
+    }
     
     try {
-        // Get user by email
+        // Check for failed login attempts
+        $stmt = $pdo->prepare("SELECT * FROM login_attempts WHERE email = ? AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+        $stmt->execute([$email]);
+        $failed_attempts = $stmt->rowCount();
+        
+        if ($failed_attempts >= 5) {
+            set_flash_message('danger', 'Too many failed attempts. Please try again in 15 minutes.');
+            header('Location: login.php?redirect=' . urlencode($redirect));
+            exit();
+        }
+        
         $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND is_banned = 0");
         $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($user && password_verify($password, $user['password_hash'])) {
+            // Check if email is verified
+            if (!$user['email_verified']) {
+                set_flash_message('warning', 'Please verify your email address before logging in.');
+                header('Location: login.php?redirect=' . urlencode($redirect));
+                exit();
+            }
+            
+            // Clear failed attempts
+            $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE email = ?");
+            $stmt->execute([$email]);
+            
             // Set session variables
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_name'] = $user['name'];
             $_SESSION['user_role'] = $user['role'];
-            
-            // Regenerate session ID for security
             session_regenerate_id(true);
             
-            // Sync cart if guest cart exists
+            // Handle remember me
+            if ($remember) {
+                $token = bin2hex(random_bytes(32));
+                $expiry = date('Y-m-d H:i:s', strtotime('+30 days'));
+                
+                $stmt = $pdo->prepare("INSERT INTO remember_tokens (user_id, token, expires_at) VALUES (?, ?, ?)");
+                $stmt->execute([$user['id'], $token, $expiry]);
+                
+                setcookie('remember_token', $token, strtotime('+30 days'), '/', '', true, true);
+            }
+            
+            error_log("User logged in: ID=" . $user['id'] . ", Email=$email, Role=" . $user['role']);
+            
             if (!empty($_SESSION['cart'])) {
-                // Cart will be maintained in session
                 set_flash_message('info', 'Your cart has been saved to your account.');
             }
             
             set_flash_message('success', 'Welcome back, ' . htmlspecialchars($user['name']) . '!');
-            header('Location: ' . $redirect);
-            exit();
+            
+            // Redirect based on user role
+            if ($user['role'] === 'admin') {
+                error_log("Admin user redirecting to dashboard");
+                header('Location: admin/dashboard.php');
+                exit();
+            } else {
+                header('Location: ' . $redirect);
+                exit();
+            }
         } else {
+            // Record failed attempt
+            $stmt = $pdo->prepare("INSERT INTO login_attempts (email, attempt_time) VALUES (?, NOW())");
+            $stmt->execute([$email]);
+            
+            error_log("Login failed for email: $email - User not found or incorrect password");
             set_flash_message('danger', 'Invalid email or password.');
+            header('Location: login.php?redirect=' . urlencode($redirect));
+            exit();
         }
     } catch (PDOException $e) {
         error_log("Login error: " . $e->getMessage());
         set_flash_message('danger', 'Error during login. Please try again later.');
+        header('Location: login.php?redirect=' . urlencode($redirect));
+        exit();
     }
 }
+
+// Now that all header-modifying logic is done, include the header and output HTML
+require_once 'includes/header.php';
 ?>
 
 <div class="row justify-content-center">
@@ -62,12 +125,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-body">
                 <h1 class="card-title h3 mb-4 text-center">Login</h1>
                 
-                <form method="POST" action="login.php?redirect=<?php echo urlencode($redirect); ?>" id="loginForm">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <form method="POST" action="login.php?redirect=<?php echo htmlspecialchars(urlencode($redirect)); ?>" id="loginForm" novalidate>
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     
                     <div class="mb-3">
                         <label for="email" class="form-label">Email address</label>
                         <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="invalid-feedback">Please enter a valid email address.</div>
                     </div>
                     
                     <div class="mb-3">
@@ -77,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                                 <i class="far fa-eye"></i>
                             </button>
+                            <div class="invalid-feedback">Please enter your password.</div>
                         </div>
                     </div>
                     
@@ -95,7 +160,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
                 
                 <hr class="my-4">
-                
                 <div class="text-center">
                     <p class="mb-0">Don't have an account? <a href="register.php" class="text-decoration-none">Register now</a></p>
                 </div>
@@ -105,23 +169,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Password visibility toggle
 document.getElementById('togglePassword').addEventListener('click', function() {
     const password = document.getElementById('password');
     const icon = this.querySelector('i');
-    
-    if (password.type === 'password') {
-        password.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-    } else {
-        password.type = 'password';
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
-    }
+    password.type = password.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
 });
 
-// Form validation
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     if (!this.checkValidity()) {
         e.preventDefault();

@@ -1,9 +1,7 @@
 <?php
 require_once '../includes/db_connect.php';
-require_once '../includes/functions.php';
-
-// Require admin access
-require_admin();
+require_once __DIR__ . '/includes/functions.php';
+require_admin_login();
 
 // Handle status update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_status') {

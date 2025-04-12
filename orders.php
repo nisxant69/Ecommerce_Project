@@ -67,7 +67,7 @@ try {
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Order ID</th>
+                            <th>Order Number</th>
                             <th>Date</th>
                             <th>Items</th>
                             <th>Total</th>
@@ -78,7 +78,7 @@ try {
                     <tbody>
                         <?php foreach ($orders as $order): ?>
                         <tr>
-                            <td>#<?php echo str_pad($order['id'], 8, '0', STR_PAD_LEFT); ?></td>
+                            <td><?php echo htmlspecialchars($order['order_number'] ?? '#' . str_pad($order['id'], 8, '0', STR_PAD_LEFT)); ?></td>
                             <td><?php echo date('M d, Y H:i', strtotime($order['created_at'])); ?></td>
                             <td><?php echo $order['total_items']; ?> items</td>
                             <td><?php echo format_price($order['total_amount']); ?></td>
@@ -87,8 +87,10 @@ try {
                                     echo match($order['status']) {
                                         'pending' => 'warning',
                                         'processing' => 'info',
-                                        'completed' => 'success',
+                                        'shipped' => 'primary',
+                                        'delivered' => 'success',
                                         'cancelled' => 'danger',
+                                        'refunded' => 'secondary',
                                         default => 'secondary'
                                     };
                                 ?>">

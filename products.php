@@ -244,7 +244,7 @@ try {
                         <i class="far fa-heart"></i>
                     </div>
                     <?php endif; ?>
-                    <img src="assets/images/<?php echo htmlspecialchars($product['image_url']); ?>" 
+                    <img src="assets/images/products/<?php echo htmlspecialchars($product['image_url']); ?>" 
                          class="card-img-top" 
                          alt="<?php echo htmlspecialchars($product['name']); ?>">
                     <div class="card-body">

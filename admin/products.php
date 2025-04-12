@@ -1,9 +1,7 @@
 <?php
 require_once '../includes/db_connect.php';
-require_once '../includes/functions.php';
-
-// Require admin access
-require_admin();
+require_once __DIR__ . '/includes/functions.php';
+require_admin_login();
 
 // Handle actions
 $action = $_GET['action'] ?? '';
@@ -410,7 +408,7 @@ try {
                                 <?php foreach ($products as $product): ?>
                                 <tr>
                                     <td>
-                                        <img src="/ecomfinal/assets/images/products/<?php echo $product['image_url']; ?>" 
+                                        <img src="../assets/images/products/<?php echo $product['image_url']; ?>" 
                                              alt="<?php echo htmlspecialchars($product['name']); ?>"
                                              class="product-image">
                                     </td>
