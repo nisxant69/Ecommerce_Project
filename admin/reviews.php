@@ -175,7 +175,7 @@ try {
                                     <th>Rating</th>
                                     <th>Review</th>
                                     <th>Date</th>
-                                    <th>Status</th>
+                                    
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -193,17 +193,9 @@ try {
                                     </td>
                                     <td><?php echo htmlspecialchars($review['comment']); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($review['created_at'])); ?></td>
+                                    
                                     <td>
-                                        <span class="badge bg-<?php echo $review['is_approved'] ? 'success' : 'warning'; ?>">
-                                            <?php echo $review['is_approved'] ? 'Approved' : 'Pending'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="?toggle_status=<?php echo $review['id']; ?>" 
-                                           class="btn btn-sm btn-<?php echo $review['is_approved'] ? 'warning' : 'success'; ?>"
-                                           title="<?php echo $review['is_approved'] ? 'Unapprove' : 'Approve'; ?>">
-                                            <i class="fas fa-<?php echo $review['is_approved'] ? 'times' : 'check'; ?>"></i>
-                                        </a>
+                                        
                                         <a href="?delete=<?php echo $review['id']; ?>" 
                                            class="btn btn-sm btn-danger"
                                            onclick="return confirm('Are you sure you want to delete this review?');">
@@ -215,7 +207,7 @@ try {
                                 
                                 <?php if (empty($reviews)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-4">No reviews found.</td>
+                                    <td colspan="6" class="text-center py-4">No reviews found.</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>

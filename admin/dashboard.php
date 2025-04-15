@@ -187,7 +187,7 @@ try {
                                 <tr>
                                     <th>Product</th>
                                     <th>Category</th>
-                                    <th>Brand</th>
+                                    
                                     <th>Stock</th>
                                     <th>Actions</th>
                                 </tr>
@@ -197,7 +197,7 @@ try {
                                 <tr>
                                     <td><?php echo htmlspecialchars($product['name']); ?></td>
                                     <td><?php echo htmlspecialchars($product['category_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($product['brand']); ?></td>
+                                    
                                     <td>
                                         <span class="badge bg-<?php echo $product['stock'] <= 5 ? 'danger' : 'warning'; ?>">
                                             <?php echo $product['stock']; ?>
@@ -213,7 +213,7 @@ try {
                                 <?php endforeach; ?>
                                 <?php if (empty($low_stock_products)): ?>
                                 <tr>
-                                    <td colspan="5" class="text-center">No low stock products</td>
+                                    <td colspan="4" class="text-center">No low stock products</td>
                                 </tr>
                                 <?php endif; ?>
                             </tbody>

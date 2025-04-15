@@ -6,7 +6,8 @@ require_once __DIR__ . '/config.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TechHub - Premium Tech & Gaming Store</title>
+    <link rel="icon" href="assets/images/logo.png" type="image/png">
+    <title>NeoTech</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -24,7 +25,9 @@ require_once __DIR__ . '/config.php';
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container">
-            <a class="navbar-brand" href="index.php">TechHub Store</a>
+            <a class="navbar-brand" href="index.php">
+                <img src="assets/images/logo.png" alt="TechHub Store Logo" height="60"> 
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -101,7 +104,7 @@ require_once __DIR__ . '/config.php';
             </div>
         </div>
     </nav>
-    <div class="container mt-4">
+    <div class="container mt-0">
         <?php 
         $flash_messages = get_flash_messages();
         foreach ($flash_messages as $flash) {

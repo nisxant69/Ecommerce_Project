@@ -15,8 +15,7 @@ if (!isset($_SESSION['user_id'])) {
 // Initialize variables
 $cart_items = [];
 $subtotal = 0;
-$shipping_cost = 10.00; // Default shipping cost - This could come from settings table
-$free_shipping_threshold = 100; // Free shipping over this amount - This could come from settings table
+$shipping_cost = 0; // Set shipping cost to 0
 
 // Get user details
 try {
@@ -40,8 +39,8 @@ try {
     }
 
 // Calculate totals
-$shipping_amount = ($subtotal >= $free_shipping_threshold) ? 0 : $shipping_cost;
-$total_amount = $subtotal + $shipping_amount;
+$shipping_amount = 0; // Always 0
+$total_amount = $subtotal + $shipping_amount; // Will just be subtotal
 
 // If cart is empty, redirect to cart page
 if (empty($cart_items)) {
@@ -162,9 +161,9 @@ require_once 'includes/header.php';
     
     <div class="row">
         <div class="col-lg-7">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-4">Shipping Information</h5>
+            <div class="card mb-4 border"> 
+                <div class="card-body p-4"> 
+                    <h5 class="card-title mb-4 border-bottom pb-3">Shipping Information</h5> 
                     
                     <form method="POST" action="checkout.php" id="checkout-form">
                         <div class="row mb-3">
@@ -218,59 +217,49 @@ require_once 'includes/header.php';
                             <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Special notes for delivery"></textarea>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label">Payment Method *</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="payment_method" id="payment_method_cod" value="cod" checked>
-                                <label class="form-check-label" for="payment_method_cod">Cash on Delivery</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="payment_method" id="payment_method_khalti" value="khalti">
-                                <label class="form-check-label" for="payment_method_khalti">Pay with Khalti</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="payment_method" id="payment_method_esewa" value="esewa">
-                                <label class="form-check-label" for="payment_method_esewa">Pay with eSewa</label>
-                            </div>
-                        </div>
+                        <hr class="my-4">
+                        
+                        <!-- Payment Method Section - Moved to the right column -->
 
-                        <button type="submit" class="btn btn-primary" id="place-order-btn">Place Order</button>
+                        <div class="d-grid mt-4"> 
+                            <button type="submit" class="btn btn-primary btn-lg" id="place-order-btn">Place Order</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
 
         <div class="col-lg-5">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title mb-4">Order Summary</h5>
+            <div class="card checkout-summary border"> 
+                <div class="card-body p-4">
+                    <h5 class="card-title mb-4 border-bottom pb-3">Order Summary</h5> 
                     
                     <div class="table-responsive">
-                        <table class="table table-sm">
+                        <table class="table table-sm table-borderless mb-0">
                             <thead>
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Qty</th>
-                                    <th class="text-end">Price</th>
+                                    <th class="py-2">Product</th> 
+                                    <th class="py-2">Qty</th> 
+                                    <th class="text-end py-2">Price</th> 
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($cart_items as $item): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($item['name']); ?></td>
-                                    <td><?php echo $item['quantity']; ?></td>
-                                    <td class="text-end"><?php echo format_price($item['price'] * $item['quantity']); ?></td>
+                                <tr class="py-2"> 
+                                    <td class="py-2"><?php echo htmlspecialchars($item['name']); ?></td> 
+                                    <td class="py-2"><?php echo $item['quantity']; ?></td> 
+                                    <td class="text-end py-2"><?php echo format_price($item['price'] * $item['quantity']); ?></td> 
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
                             <tfoot>
-                                <tr>
-                                    <td colspan="2">Subtotal</td>
-                                    <td class="text-end"><?php echo format_price($subtotal); ?></td>
+                                <tr class="py-2"> 
+                                    <td colspan="2" class="py-2">Subtotal</td> 
+                                    <td class="text-end py-2"><?php echo format_price($subtotal); ?></td> 
                                 </tr>
-                                <tr>
-                                    <td colspan="2">Shipping</td>
-                                    <td class="text-end">
+                                <tr class="py-2"> 
+                                    <td colspan="2" class="py-2">Shipping</td> 
+                                    <td class="text-end py-2"> 
                                         <?php if ($shipping_amount > 0): ?>
                                             <?php echo format_price($shipping_amount); ?>
                                         <?php else: ?>
@@ -278,15 +267,44 @@ require_once 'includes/header.php';
                                         <?php endif; ?>
                                     </td>
                                 </tr>
-                                <tr class="fw-bold">
-                                    <td colspan="2">Total</td>
-                                    <td class="text-end"><?php echo format_price($total_amount); ?></td>
+                                <tr class="fw-bold py-2 border-top mt-2"> 
+                                    <td colspan="2" class="pt-3">Total</td> 
+                                    <td class="text-end pt-3"><?php echo format_price($total_amount); ?></td> 
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
                 </div>
             </div>
+
+            <!-- Payment Method Section - Moved here -->
+            <div class="card mb-4 border"> 
+                <div class="card-body p-4">
+                    <h5 class="mb-3 border-bottom pb-2">Payment Method *</h5> 
+                    <div class="form-check mb-2"> 
+                        <input class="form-check-input" type="radio" name="payment_method" id="payment_method_cod" value="cod" checked>
+                        <label class="form-check-label" for="payment_method_cod">Cash on Delivery</label>
+                    </div>
+                    <div class="form-check mb-2"> 
+                        <input class="form-check-input" type="radio" name="payment_method" id="payment_method_khalti" value="khalti">
+                        <label class="form-check-label" for="payment_method_khalti">Pay with Khalti</label>
+                    </div>
+                    <div class="form-check"> 
+                        <input class="form-check-input" type="radio" name="payment_method" id="payment_method_esewa" value="esewa">
+                        <label class="form-check-label" for="payment_method_esewa">Pay with eSewa</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Logos -->
+            <div class="card mt-4 border bg-light"> 
+                <div class="card-body text-center p-3">
+                    <h6 class="text-muted mb-3">Accepted Payment Methods</h6>
+                    <img src="assets/images/khalti.png" alt="Khalti Logo" height="35" class="me-3">
+                    <img src="assets/images/esewa.png" alt="eSewa Logo" height="35">
+                </div>
+            </div>
+            
         </div>
     </div>
 </div>
@@ -448,4 +466,5 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- Add Khalti Checkout Script -->
 <script src="https://test-admin.khalti.com/static/khalti-checkout.js"></script>
 
-<?php require_once 'includes/footer.php'; ?>
+<!-- may use for footer php require_once 'includes/footer.php'; ?> -->
+

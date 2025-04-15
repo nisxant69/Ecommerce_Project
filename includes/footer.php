@@ -1,5 +1,5 @@
     </div><!-- /.container -->
-    <footer class="bg-light mt-5 py-4">
+    <footer class="mt-5 py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-3">
@@ -47,7 +47,7 @@
             </div>
             <hr>
             <div class="text-center">
-                <p>&copy; <?php echo date('Y'); ?> E-Commerce Store. All rights reserved.</p>
+                <p>&copy; <?php echo date('Y'); ?> Neotech. All rights reserved.</p>
             </div>
         </div>
     </footer>

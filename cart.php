@@ -10,7 +10,7 @@ error_log("Cart page - Session data: " . print_r($_SESSION, true));
 // Initialize variables
 $cart_items = [];
 $total = 0;
-$shipping_fee = 1.00; // Fixed $1 shipping fee
+$shipping_fee = 0; // Set shipping fee to 0
 
 // Get cart items
 if (is_logged_in()) {
